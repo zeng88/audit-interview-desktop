@@ -10,60 +10,146 @@ permissions:
 
 jobs:
   build:
+    name: Build ${{ matrix.platform }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: "macos-latest"
+            artifactName: "macos-universal"
             args: "--target universal-apple-darwin --bundles app,dmg"
             rustTargets: "x86_64-apple-darwin,aarch64-apple-darwin"
+            sidecarTarget: "universal-apple-darwin"
           - platform: "ubuntu-22.04"
+            artifactName: "ubuntu-x64"
             args: "--bundles deb"
             rustTargets: ""
+            sidecarTarget: "x86_64-unknown-linux-gnu"
           - platform: "windows-latest"
+            artifactName: "windows-x64"
             args: "--bundles nsis"
             rustTargets: ""
+            sidecarTarget: "x86_64-pc-windows-msvc"
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+
       - uses: dtolnay/rust-toolchain@stable
         if: matrix.rustTargets == ''
+
       - uses: dtolnay/rust-toolchain@stable
         if: matrix.rustTargets != ''
         with:
           targets: ${{ matrix.rustTargets }}
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf build-essential curl wget file libssl-dev
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            libgtk-3-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            librsvg2-dev \
+            patchelf \
+            pkg-config \
+            wget
+
+      - name: Install Windows NSIS
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          # 固定安装 NSIS，避免 tauri-bundler 在 runner 缓存目录下载/解压工具时失败。
+          choco install nsis -y --no-progress
+          "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       - name: Install Node dependencies
         run: |
           npm ci
           npm --prefix frontend ci
+
       - name: Install backend dependencies
         working-directory: backend-python
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
-      - name: Build backend sidecar
-        working-directory: backend-python
-        run: pyinstaller --onefile app.py --name audit-backend
+
+      - name: Show build environment
+        run: |
+          node --version
+          npm --version
+          rustc --version
+          cargo --version
+          python --version
+          npm run tauri -- --version
+
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIDECAR_TARGET: ${{ matrix.sidecarTarget }}
+        run: npm run tauri build -- ${{ matrix.args }}
+
+      - name: Collect installers
+        shell: bash
+        run: |
+          # 统一收集安装包，缺少目标产物时直接失败，避免发布空 Release。
+          set -euo pipefail
+          shopt -s globstar nullglob
+          mkdir -p release-assets
+          files=(
+            src-tauri/target/**/release/bundle/**/*.dmg
+            src-tauri/target/**/release/bundle/**/*.deb
+            src-tauri/target/**/release/bundle/**/*.exe
+          )
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No installer files were generated."
+            find src-tauri/target -maxdepth 6 -type f | sort
+            exit 1
+          fi
+          for file in "${files[@]}"; do
+            cp "$file" release-assets/
+          done
+          ls -lh release-assets
+
+      - uses: actions/upload-artifact@v4
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Audit Interview Desktop ${{ github.ref_name }}"
-          releaseBody: "自动构建的审计访谈清单桌面应用安装包。"
-          releaseDraft: true
+          name: ${{ matrix.artifactName }}
+          path: release-assets/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Show release assets
+        run: ls -lh release-assets
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: "Audit Interview Desktop ${{ github.ref_name }}"
+          body: "自动构建的审计访谈清单桌面应用安装包。"
+          draft: true
           prerelease: false
-          args: ${{ matrix.args }}
+          files: release-assets/*

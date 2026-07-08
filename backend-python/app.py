@@ -1,8 +1,9 @@
 import os
+import threading
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import FastAPI, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import APP_VERSION
@@ -55,6 +56,17 @@ def _handle_error(exc: Exception) -> HTTPException:
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "version": APP_VERSION}
+
+
+@app.post("/shutdown")
+def shutdown(x_shutdown_token: str | None = Header(default=None)) -> dict:
+    expected_token = os.environ.get("AUDIT_BACKEND_SHUTDOWN_TOKEN")
+    if not expected_token or x_shutdown_token != expected_token:
+        raise HTTPException(status_code=403, detail="shutdown token invalid")
+
+    # 先返回响应，再异步退出进程，避免 Tauri 端收到连接中断误判为失败。
+    threading.Timer(0.2, lambda: os._exit(0)).start()
+    return {"ok": True}
 
 
 @app.get("/stats")
@@ -231,6 +243,6 @@ def task_progress(project_id: int, task_type: str | None = None) -> dict:
 
 
 if __name__ == "__main__":
-    # 直接运行 app.py 时用于本地开发；Tauri sidecar 后续也复用同入口。
+    # 直接传入 FastAPI 实例，避免 PyInstaller 单文件环境无法重新导入 "app:app"。
     port = int(os.environ.get("AUDIT_BACKEND_PORT", "8765"))
-    uvicorn.run("app:app", host="127.0.0.1", port=port, reload=False)
+    uvicorn.run(app, host="127.0.0.1", port=port, reload=False)

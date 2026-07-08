@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "npm --prefix frontend run dev",
     "devUrl": "http://127.0.0.1:5173",
-    "beforeBuildCommand": "npm --prefix frontend run build",
+    "beforeBuildCommand": "npm run build:frontend && npm run prepare:sidecar",
     "frontendDist": "../frontend/dist"
   },
   "app": {
@@ -26,6 +26,14 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "zeng88",
+    "category": "Productivity",
+    "shortDescription": "Audit interview checklist desktop tool",
+    "longDescription": "A desktop tool for generating audit interview checklists from local project files.",
+    "useLocalToolsDir": true,
+    "externalBin": [
+      "binaries/audit-backend"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -33,6 +41,25 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "installMode": "currentUser",
+        "languages": ["English", "SimpChinese"]
+      }
+    },
+    "linux": {
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0",
+          "libayatana-appindicator3-1",
+          "librsvg2-2"
+        ],
+        "section": "utils",
+        "priority": "optional"
+      }
+    },
     "resources": []
   }
 }

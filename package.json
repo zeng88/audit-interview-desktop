@@ -7,6 +7,7 @@
     "backend": "bash scripts/start_backend.sh",
     "frontend": "npm --prefix frontend run dev",
     "build:frontend": "npm --prefix frontend run build",
+    "prepare:sidecar": "node scripts/prepare_sidecar.mjs",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build --bundles app"
