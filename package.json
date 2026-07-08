@@ -1,0 +1,17 @@
+{
+  "name": "audit-interview-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "backend": "bash scripts/start_backend.sh",
+    "frontend": "npm --prefix frontend run dev",
+    "build:frontend": "npm --prefix frontend run build",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}
