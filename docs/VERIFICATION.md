@@ -44,6 +44,18 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 
 执行目录：`src-tauri`。结果：Tauri Rust 层编译检查通过。
 
+```bash
+npm run tauri:build
+```
+
+结果：macOS `.app` 构建成功。
+
+```text
+/Users/zeng88/Documents/Git/audit-interview-desktop/src-tauri/target/release/bundle/macos/审计访谈清单生成工具.app
+```
+
+曾执行默认 `tauri build`，应用二进制和 `.app` 已生成，但 DMG 打包脚本在当前环境失败。因此本地脚本改为 `tauri build --bundles app`，优先保证桌面应用本地可运行。
+
 ## 当前运行地址
 
 - 后端：`http://127.0.0.1:8765`
@@ -52,4 +64,3 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u al
 ## 说明
 
 当前环境首次缺少 Rust，已通过 rustup 安装 minimal 工具链后完成 Tauri `cargo check`。Cargo 下载依赖时需要清理不可用的本地代理环境变量。
-
