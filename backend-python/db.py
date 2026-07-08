@@ -199,10 +199,23 @@ def init_db() -> None:
                 task_type TEXT NOT NULL,
                 status TEXT NOT NULL,
                 message TEXT,
+                progress_current INTEGER DEFAULT 0,
+                progress_total INTEGER DEFAULT 0,
+                progress_percent INTEGER DEFAULT 0,
                 created_at TEXT NOT NULL
             );
             """
         )
+        for column, definition in (
+            ("progress_current", "INTEGER DEFAULT 0"),
+            ("progress_total", "INTEGER DEFAULT 0"),
+            ("progress_percent", "INTEGER DEFAULT 0"),
+        ):
+            try:
+                conn.execute(f"ALTER TABLE task_logs ADD COLUMN {column} {definition}")
+            except sqlite3.OperationalError:
+                # 兼容旧数据库：字段已存在时忽略。
+                pass
         tokenizer = _create_fts(conn)
         conn.execute(
             "CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"

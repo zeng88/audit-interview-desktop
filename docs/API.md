@@ -17,4 +17,7 @@
 - `POST /projects/{project_id}/generate-checklist`
 - `GET /projects/{project_id}/checklist`
 - `POST /projects/{project_id}/export`
+- `GET /projects/{project_id}/logs`
+- `GET /projects/{project_id}/task-progress`
 
+上传文件支持 `.pdf`、`.docx`、`.xlsx`、`.txt`、`.csv`、`.md`、`.markdown`。

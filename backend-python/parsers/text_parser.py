@@ -26,6 +26,26 @@ def parse_txt(path: str | Path) -> list[dict]:
     ] if text else []
 
 
+def parse_markdown(path: str | Path) -> list[dict]:
+    text = clean_text(_read_text(Path(path)))
+    if not text:
+        return []
+    section_title = "Markdown 文档"
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            section_title = stripped.lstrip("#").strip() or section_title
+            break
+    return [
+        {
+            "page_number": None,
+            "sheet_name": None,
+            "section_title": section_title,
+            "raw_text": text,
+        }
+    ]
+
+
 def parse_csv(path: str | Path) -> list[dict]:
     file_path = Path(path)
     content = _read_text(file_path)
@@ -44,4 +64,3 @@ def parse_csv(path: str | Path) -> list[dict]:
             "raw_text": text,
         }
     ] if text else []
-

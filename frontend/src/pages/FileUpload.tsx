@@ -18,9 +18,9 @@ export function FileUpload({ project }: { project: Project }) {
 
   return (
     <div>
-      <div className="page-head"><div><h1>文件上传</h1><p>支持 PDF、DOCX、XLSX、TXT、CSV。</p></div></div>
+      <div className="page-head"><div><h1>文件上传</h1><p>支持 PDF、DOCX、XLSX、TXT、CSV、Markdown。</p></div></div>
       <label className="dropzone">
-        <input type="file" multiple accept=".pdf,.docx,.xlsx,.txt,.csv" onChange={(e) => upload(e.target.files)} />
+        <input type="file" multiple accept=".pdf,.docx,.xlsx,.txt,.csv,.md,.markdown" onChange={(e) => upload(e.target.files)} />
         <strong>选择或拖入制度文件</strong>
         <span>文件将保存在本地 storage 目录</span>
       </label>
@@ -45,4 +45,3 @@ export function FileUpload({ project }: { project: Project }) {
     </div>
   );
 }
-

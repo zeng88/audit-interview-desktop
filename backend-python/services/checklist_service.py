@@ -14,6 +14,9 @@ def generate_checklist(
     questions = generate_questions(project_id, chat_model_config_id, question_count, modules)
     created = 0
     missing = 0
+    total = len(questions)
+    if total:
+        write_log(project_id, "checklist", "running", "开始生成访谈清单", 0, total)
     with db_cursor() as cur:
         cur.execute("DELETE FROM checklist_items WHERE project_id = ?", (project_id,))
         cur.execute("DELETE FROM missing_policy_items WHERE project_id = ?", (project_id,))
@@ -66,9 +69,10 @@ def generate_checklist(
                         ),
                     )
         except Exception as exc:
-            write_log(project_id, "checklist", "failed", f"问题生成失败：{question.get('question_id')}，{exc}")
+            write_log(project_id, "checklist", "failed", f"问题生成失败：{question.get('question_id')}，{exc}", created, total)
             continue
-    write_log(project_id, "checklist", "success", f"生成访谈清单 {created} 条，无依据 {missing} 条")
+        write_log(project_id, "checklist", "running", f"清单生成进度：{created}/{total}", created, total)
+    write_log(project_id, "checklist", "success", f"生成访谈清单 {created} 条，无依据 {missing} 条", total, total)
     return {"created_count": created, "missing_count": missing}
 
 
@@ -114,4 +118,3 @@ def list_missing_policy_items(project_id: int) -> list[dict]:
             (project_id,),
         ).fetchall()
         return [dict(row) for row in rows]
-

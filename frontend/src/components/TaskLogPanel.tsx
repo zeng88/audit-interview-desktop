@@ -10,11 +10,18 @@ export function TaskLogPanel({ logs }: { logs: TaskLog[] }) {
           <div className="log-line" key={log.id}>
             <span className={`pill ${log.status}`}>{log.status}</span>
             <span>{log.task_type}</span>
-            <span>{log.message}</span>
+            <span>
+              {log.message}
+              {log.progress_total > 0 && (
+                <span className="progress-inline">
+                  <span className="progress-bar"><i style={{ width: `${log.progress_percent}%` }} /></span>
+                  <b>{log.progress_percent}%</b>
+                </span>
+              )}
+            </span>
           </div>
         ))}
       </div>
     </div>
   );
 }
-

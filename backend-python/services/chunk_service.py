@@ -30,6 +30,10 @@ def build_chunks(project_id: int, chunk_size: int = 800, overlap: int = 120) -> 
             """,
             (project_id,),
         ).fetchall()
+    total_pages = len(pages)
+    if total_pages:
+        write_log(project_id, "chunk", "running", "开始生成文本切片", 0, total_pages)
+    with db_cursor() as cur:
         cur.execute("DELETE FROM chunks WHERE project_id = ?", (project_id,))
         try:
             cur.execute(
@@ -40,7 +44,7 @@ def build_chunks(project_id: int, chunk_size: int = 800, overlap: int = 120) -> 
             # FTS 外部内容表在 chunks 删除后可能无需额外清理，这里容错处理。
             pass
         chunk_total = 0
-        for page in pages:
+        for page_index, page in enumerate(pages, start=1):
             for index, text in enumerate(_window_chunks(page["raw_text"] or "", chunk_size, overlap)):
                 search_text = f"{page['original_name']} {page['section_title'] or ''} {text}"
                 clause_no = detect_clause(text)
@@ -71,6 +75,21 @@ def build_chunks(project_id: int, chunk_size: int = 800, overlap: int = 120) -> 
                     (chunk_id, text, search_text),
                 )
                 chunk_total += 1
-    write_log(project_id, "chunk", "success", f"生成切片 {chunk_total} 个")
+            cur.execute(
+                """
+                INSERT INTO task_logs(
+                    project_id, task_type, status, message,
+                    progress_current, progress_total, progress_percent, created_at
+                ) VALUES(?, 'chunk', 'running', ?, ?, ?, ?, ?)
+                """,
+                (
+                    project_id,
+                    f"已处理文本单元 {page_index}/{total_pages}",
+                    page_index,
+                    total_pages,
+                    int(page_index * 100 / total_pages) if total_pages else 0,
+                    now_iso(),
+                ),
+            )
+    write_log(project_id, "chunk", "success", f"生成切片 {chunk_total} 个", total_pages, total_pages)
     return {"chunk_count": chunk_total}
-

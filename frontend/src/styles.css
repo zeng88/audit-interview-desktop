@@ -14,7 +14,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 232px 1fr; }
 .sidebar { background: #0f172a; color: #e5edf8; padding: 18px; }
 .brand { display: flex; gap: 10px; align-items: center; margin-bottom: 24px; }
-.brand-mark { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 8px; background: #2563eb; font-weight: 700; }
+.brand-logo { width: 42px; height: 42px; object-fit: cover; border-radius: 8px; background: white; }
 .brand small { display: block; color: #9fb0c7; margin-top: 3px; }
 nav { display: grid; gap: 8px; }
 nav button { text-align: left; background: transparent; color: #cbd5e1; border-color: transparent; }
@@ -63,6 +63,10 @@ tbody tr:hover { background: #f8fbff; }
 .panel-title { font-weight: 700; margin-bottom: 10px; }
 .log-list { display: grid; gap: 8px; }
 .log-line { display: grid; grid-template-columns: 80px 100px 1fr; gap: 8px; align-items: start; font-size: 13px; }
+.progress-inline { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.progress-bar { display: inline-block; width: 160px; height: 8px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+.progress-bar i { display: block; height: 100%; background: #2563eb; border-radius: inherit; }
+.progress-inline b { color: #2563eb; font-weight: 600; }
 .muted { color: #64748b; }
 .drawer-mask { position: fixed; inset: 0; background: rgba(15, 23, 42, .28); display: flex; justify-content: flex-end; }
 .drawer { width: min(520px, 92vw); background: white; height: 100%; padding: 18px; overflow: auto; box-shadow: -8px 0 24px rgba(15, 23, 42, .18); }
@@ -79,4 +83,3 @@ dd { margin: 6px 0 0; color: #334155; }
   .form-grid { grid-template-columns: 1fr; }
   .topbar { align-items: flex-start; height: auto; padding: 14px; display: grid; gap: 10px; }
 }
-

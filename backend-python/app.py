@@ -27,7 +27,7 @@ from services.checklist_service import (
 )
 from services.chunk_service import build_chunks
 from services.export_service import export_project
-from services.log_service import list_logs, write_log
+from services.log_service import latest_progress, list_logs, write_log
 from services.parse_service import parse_project_files
 from services.retrieval_service import hybrid_search
 from services.vector_service import build_vector_index
@@ -225,8 +225,12 @@ def logs(project_id: int, limit: int = 100) -> list[dict]:
     return list_logs(project_id, limit)
 
 
+@app.get("/projects/{project_id}/task-progress")
+def task_progress(project_id: int, task_type: str | None = None) -> dict:
+    return latest_progress(project_id, task_type) or {}
+
+
 if __name__ == "__main__":
     # 直接运行 app.py 时用于本地开发；Tauri sidecar 后续也复用同入口。
     port = int(os.environ.get("AUDIT_BACKEND_PORT", "8765"))
     uvicorn.run("app:app", host="127.0.0.1", port=port, reload=False)
-

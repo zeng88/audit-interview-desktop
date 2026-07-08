@@ -52,7 +52,7 @@ export default function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">AI</span>
+          <img className="brand-logo" src="/logo.png" alt="访谈助手" />
           <div>
             <strong>审计访谈清单</strong>
             <small>本地生成工具</small>
@@ -84,4 +84,3 @@ export default function App() {
     </div>
   );
 }
-

@@ -4,7 +4,7 @@ from db import db_cursor, now_iso
 from parsers.docx_parser import parse_docx
 from parsers.excel_parser import parse_xlsx
 from parsers.pdf_parser import parse_pdf
-from parsers.text_parser import parse_csv, parse_txt
+from parsers.text_parser import parse_csv, parse_markdown, parse_txt
 from services.file_service import list_files, update_parse_status
 from services.log_service import write_log
 
@@ -20,6 +20,8 @@ def _parse_file(file_row: dict) -> list[dict]:
         return parse_xlsx(path)
     if file_type == "txt":
         return parse_txt(path)
+    if file_type in {"md", "markdown"}:
+        return parse_markdown(path)
     if file_type == "csv":
         return parse_csv(path)
     raise ValueError(f"不支持的文件类型：{file_type}")
@@ -30,7 +32,10 @@ def parse_project_files(project_id: int) -> dict:
     parsed_count = 0
     failed_count = 0
     page_count = 0
-    for file_row in files:
+    total = len(files)
+    if total:
+        write_log(project_id, "parse", "running", "开始解析文件", 0, total)
+    for file_index, file_row in enumerate(files, start=1):
         try:
             pages = _parse_file(file_row)
             with db_cursor() as cur:
@@ -56,10 +61,24 @@ def parse_project_files(project_id: int) -> dict:
             update_parse_status(file_row["id"], "parsed", None)
             parsed_count += 1
             page_count += len(pages)
-            write_log(project_id, "parse", "success", f"解析成功：{file_row['original_name']}，{len(pages)} 个文本单元")
+            write_log(
+                project_id,
+                "parse",
+                "success",
+                f"解析成功：{file_row['original_name']}，{len(pages)} 个文本单元",
+                file_index,
+                total,
+            )
         except Exception as exc:
             failed_count += 1
             update_parse_status(file_row["id"], "failed", str(exc))
-            write_log(project_id, "parse", "failed", f"解析失败：{file_row['original_name']}，{exc}")
+            write_log(
+                project_id,
+                "parse",
+                "failed",
+                f"解析失败：{file_row['original_name']}，{exc}",
+                file_index,
+                total,
+            )
+    write_log(project_id, "parse", "finished", f"解析完成：成功 {parsed_count}，失败 {failed_count}", total, total)
     return {"parsed_count": parsed_count, "failed_count": failed_count, "page_count": page_count}
-

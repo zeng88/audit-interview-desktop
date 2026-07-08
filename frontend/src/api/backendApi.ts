@@ -54,5 +54,6 @@ export const backendApi = {
   exportProject: (projectId: number, format: "xlsx" | "docx" | "json") =>
     request<{ path: string; file_name: string }>(`/projects/${projectId}/export`, { method: "POST", body: JSON.stringify({ format }) }),
   listLogs: (projectId: number) => request<TaskLog[]>(`/projects/${projectId}/logs`),
+  taskProgress: (projectId: number, taskType?: string) =>
+    request<TaskLog | Record<string, never>>(`/projects/${projectId}/task-progress${taskType ? `?task_type=${taskType}` : ""}`),
 };
-

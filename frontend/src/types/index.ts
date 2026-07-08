@@ -67,6 +67,8 @@ export type TaskLog = {
   task_type: string;
   status: string;
   message: string;
+  progress_current: number;
+  progress_total: number;
+  progress_percent: number;
   created_at: string;
 };
-

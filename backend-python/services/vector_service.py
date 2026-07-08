@@ -26,7 +26,10 @@ def build_vector_index(project_id: int, config_id: int, batch_size: int = 16) ->
             "SELECT id, chunk_text FROM chunks WHERE project_id = ? ORDER BY id",
             (project_id,),
         ).fetchall()
-    for start in range(0, len(chunks), batch_size):
+    total = len(chunks)
+    if total:
+        write_log(project_id, "embedding", "running", "开始构建向量索引", 0, total)
+    for start in range(0, total, batch_size):
         batch = chunks[start : start + batch_size]
         try:
             vectors = embed_texts([row["chunk_text"] for row in batch], config, dimension)
@@ -50,6 +53,7 @@ def build_vector_index(project_id: int, config_id: int, batch_size: int = 16) ->
                         (config_id, dimension, now_iso(), row["id"]),
                     )
                     success += 1
+            write_log(project_id, "embedding", "running", f"向量化进度：{min(start + len(batch), total)}/{total}", min(start + len(batch), total), total)
         except Exception as exc:
             failed += len(batch)
             with db_cursor() as cur:
@@ -58,8 +62,8 @@ def build_vector_index(project_id: int, config_id: int, batch_size: int = 16) ->
                         "UPDATE chunks SET embedding_status = 'failed', embedding_error = ? WHERE id = ?",
                         (str(exc), row["id"]),
                     )
-            write_log(project_id, "embedding", "failed", f"向量化批次失败：{exc}")
-    write_log(project_id, "embedding", "success", f"向量索引完成：成功 {success}，失败 {failed}")
+            write_log(project_id, "embedding", "failed", f"向量化批次失败：{exc}", min(start + len(batch), total), total)
+    write_log(project_id, "embedding", "success", f"向量索引完成：成功 {success}，失败 {failed}", total, total)
     return {"success_count": success, "failed_count": failed, "mode": "fallback-cosine"}
 
 
@@ -102,4 +106,3 @@ def search_vector(project_id: int, query: str, config_id: int | None, top_k: int
             location.append(str(item["section_title"]))
         item["source_location"] = "，".join(location) or "未标注位置"
     return results
-

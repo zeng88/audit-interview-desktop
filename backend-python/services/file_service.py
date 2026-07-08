@@ -7,7 +7,7 @@ from config import FILES_DIR
 from db import db_cursor, now_iso, safe_unlink
 
 
-SUPPORTED_TYPES = {".pdf", ".docx", ".xlsx", ".txt", ".csv"}
+SUPPORTED_TYPES = {".pdf", ".docx", ".xlsx", ".txt", ".csv", ".md", ".markdown"}
 
 
 def _project_file_dir(project_id: int) -> Path:
@@ -76,4 +76,3 @@ def update_parse_status(file_id: int, status: str, error: str | None = None) -> 
             "UPDATE files SET parse_status = ?, parse_error = ? WHERE id = ?",
             (status, error, file_id),
         )
-

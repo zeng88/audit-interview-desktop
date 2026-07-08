@@ -8,7 +8,7 @@
 python3 -m pytest backend-python/tests/test_core_flow.py -q
 ```
 
-结果：`1 passed`。覆盖项目创建、模型配置、本地 TXT 上传、解析、切片、向量索引、混合检索、清单生成、JSON/Excel/Word 导出。
+结果：`1 passed`。覆盖项目创建、模型配置、本地 Markdown 上传、解析、进度日志、切片、向量索引、混合检索、清单生成、JSON/Excel/Word 导出。
 
 ```bash
 python3 -m py_compile app.py config.py db.py schemas.py services/*.py parsers/*.py exporters/*.py prompts/*.py

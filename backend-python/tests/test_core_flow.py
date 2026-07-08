@@ -62,19 +62,25 @@ def test_core_local_flow(tmp_path: Path) -> None:
         },
     ).json()
 
-    content = "采购管理制度\n采购需求由使用部门提出，经部门负责人审批后提交采购部门。采购资料应归档留痕。"
+    content = "# 采购管理制度\n采购需求由使用部门提出，经部门负责人审批后提交采购部门。采购资料应归档留痕。"
     response = client.post(
         f"/projects/{project_id}/files",
-        files={"file": ("采购管理制度.txt", content.encode("utf-8"), "text/plain")},
+        files={"file": ("采购管理制度.md", content.encode("utf-8"), "text/markdown")},
     )
     assert response.status_code == 200
 
     assert client.post(f"/projects/{project_id}/parse").json()["parsed_count"] == 1
+    parse_progress = client.get(f"/projects/{project_id}/task-progress?task_type=parse").json()
+    assert parse_progress["progress_percent"] == 100
     assert client.post(f"/projects/{project_id}/chunk", json={"chunk_size": 100, "overlap": 10}).json()["chunk_count"] >= 1
+    chunk_progress = client.get(f"/projects/{project_id}/task-progress?task_type=chunk").json()
+    assert "progress_current" in chunk_progress
     assert client.post(
         f"/projects/{project_id}/build-vector-index",
         json={"embedding_model_config_id": embedding_config["id"], "batch_size": 4},
     ).json()["success_count"] >= 1
+    embedding_progress = client.get(f"/projects/{project_id}/task-progress?task_type=embedding").json()
+    assert embedding_progress["progress_percent"] == 100
 
     search = client.post(
         f"/projects/{project_id}/search-test",
