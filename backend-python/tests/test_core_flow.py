@@ -2,6 +2,7 @@ import os
 import sqlite3
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock
 
 os.environ["AUDIT_BACKEND_PORT"] = "8765"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -358,3 +359,120 @@ def test_core_local_flow(tmp_path: Path) -> None:
     for export_format in ("json", "xlsx", "docx"):
         exported = client.post(f"/projects/{project_id}/export", json={"format": export_format}).json()
         assert Path(exported["path"]).exists()
+
+
+def test_chat_json_omits_response_format_for_openrouter(monkeypatch) -> None:
+    """OpenRouter 不支持 OpenAI 的 response_format，应避免在 payload 中发送。"""
+    from services.llm_service import chat_json
+
+    captured: dict = {}
+
+    class _FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, url, headers=None, json=None):
+            captured["url"] = url
+            captured["payload"] = json
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.json.return_value = {
+                "choices": [{"message": {"content": '{"ok": true}'}}]
+            }
+            return resp
+
+    monkeypatch.setattr("services.llm_service.httpx.Client", _FakeClient)
+    openrouter_config = {
+        "provider": "openai-compatible",
+        "base_url": "https://openrouter.ai/api/v1",
+        "api_key": "sk-test",
+        "model": "anthropic/claude-3.5-sonnet",
+    }
+    result = chat_json("hello", openrouter_config)
+
+    assert result == {"ok": True}
+    assert "response_format" not in captured["payload"]
+    assert captured["url"] == "https://openrouter.ai/api/v1/chat/completions"
+
+
+def test_chat_json_keeps_response_format_for_openai_official(monkeypatch) -> None:
+    """OpenAI 官方端点原生支持 response_format，应保留以约束 JSON 输出。"""
+    from services.llm_service import chat_json
+
+    captured: dict = {}
+
+    class _FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, url, headers=None, json=None):
+            captured["url"] = url
+            captured["payload"] = json
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.json.return_value = {
+                "choices": [{"message": {"content": '{"ok": true}'}}]
+            }
+            return resp
+
+    monkeypatch.setattr("services.llm_service.httpx.Client", _FakeClient)
+    openai_config = {
+        "provider": "openai-compatible",
+        "base_url": "https://api.openai.com/v1",
+        "api_key": "sk-test",
+        "model": "gpt-4o-mini",
+    }
+    chat_json("hello", openai_config)
+
+    assert captured["payload"].get("response_format") == {"type": "json_object"}
+
+
+def test_chat_json_surfaces_upstream_error_body(monkeypatch) -> None:
+    """当 OpenRouter 返回 4xx 时，应把上游错误体透传到异常文本中便于排查。"""
+    from services.llm_service import chat_json
+
+    class _FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, url, headers=None, json=None):
+            resp = MagicMock()
+            resp.status_code = 400
+            resp.text = '{"error":{"message":"Provider returned error","code":400}}'
+            return resp
+
+    monkeypatch.setattr("services.llm_service.httpx.Client", _FakeClient)
+    openrouter_config = {
+        "provider": "openai-compatible",
+        "base_url": "https://openrouter.ai/api/v1",
+        "api_key": "sk-test",
+        "model": "anthropic/claude-3.5-sonnet",
+    }
+    try:
+        chat_json("hello", openrouter_config)
+    except RuntimeError as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("chat_json 应该抛出 RuntimeError")
+
+    assert "400" in message
+    assert "Provider returned error" in message
+    assert "openai-compatible" in message
