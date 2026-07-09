@@ -43,7 +43,11 @@ def answer_question(
 ) -> tuple[dict, list[dict]]:
     query = " ".join(question.get("search_keywords") or []) or question.get("interview_question", "")
     evidence_chunks = hybrid_search(project_id, query, embedding_model_config_id, top_k=10)
-    config = get_model_config(chat_model_config_id, "chat") if chat_model_config_id else get_model_config(None, "chat")
+    # chat_model_config_id=-1 是内部强制本地答案标记，避免降级后再次选中默认外部推理模型。
+    if chat_model_config_id == -1:
+        config = None
+    else:
+        config = get_model_config(chat_model_config_id, "chat") if chat_model_config_id else get_model_config(None, "chat")
     if not config or not config.get("api_key"):
         return _fallback_answer(question, evidence_chunks), evidence_chunks
     try:
@@ -51,4 +55,3 @@ def answer_question(
         return chat_json(prompt, config), evidence_chunks
     except Exception:
         return _fallback_answer(question, evidence_chunks), evidence_chunks
-

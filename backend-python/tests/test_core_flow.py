@@ -114,6 +114,7 @@ def test_generate_checklist_falls_back_when_chat_model_fails(monkeypatch, tmp_pa
 
     assert result["created_count"] == 2
     assert len(checklist) == 2
+    assert all(item["expected_answer"] for item in checklist)
     assert any(log["status"] == "running" and "本地模板生成访谈问题" in log["message"] for log in logs)
 
 

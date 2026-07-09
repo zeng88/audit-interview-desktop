@@ -18,7 +18,7 @@ def generate_checklist(
     total = len(questions)
     # 如果问题生成已降级，后续答案也走本地归纳，避免同一不可用模型反复拖慢生成。
     use_local_fallback = any(question.get("_local_fallback") for question in questions)
-    effective_chat_model_config_id = None if use_local_fallback else chat_model_config_id
+    effective_chat_model_config_id = -1 if use_local_fallback else chat_model_config_id
     effective_embedding_model_config_id = -1 if use_local_fallback else embedding_model_config_id
     if total:
         write_log(project_id, "checklist", "running", "开始生成访谈清单", 0, total)
