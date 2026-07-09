@@ -1,4 +1,5 @@
 import json
+import os
 import re
 
 import httpx
@@ -32,9 +33,11 @@ def chat_json(prompt: str, config: dict | None) -> dict:
         "max_tokens": int(config.get("max_tokens") or 4096),
         "response_format": {"type": "json_object"},
     }
-    with httpx.Client(timeout=float(config.get("timeout_seconds") or 120)) as client:
+    # 桌面端交互不能长时间无反馈，单次推理请求默认最多等待 20 秒；必要时可用环境变量放宽。
+    timeout_cap = float(os.environ.get("AUDIT_LLM_TIMEOUT_CAP_SECONDS", "20"))
+    timeout = min(float(config.get("timeout_seconds") or timeout_cap), timeout_cap)
+    with httpx.Client(timeout=timeout) as client:
         resp = client.post(f"{endpoint}/chat/completions", headers=headers, json=payload)
         resp.raise_for_status()
     content = resp.json()["choices"][0]["message"]["content"]
     return parse_json_response(content)
-

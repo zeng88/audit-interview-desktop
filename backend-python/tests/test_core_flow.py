@@ -60,6 +60,63 @@ def test_init_db_migrates_legacy_storage_when_current_has_no_projects(tmp_path: 
     assert Path(stored_path).exists()
 
 
+def test_generate_checklist_falls_back_when_chat_model_fails(monkeypatch, tmp_path: Path) -> None:
+    config.LEGACY_STORAGE_DIR = tmp_path / "legacy-storage"
+    _set_storage_paths(tmp_path / "storage")
+    init_db()
+    client = TestClient(app)
+
+    def broken_chat_json(*_args, **_kwargs):
+        raise RuntimeError("模型连接失败")
+
+    monkeypatch.setattr("services.audit_question_service.chat_json", broken_chat_json)
+    monkeypatch.setattr("services.evidence_service.chat_json", broken_chat_json)
+
+    project = client.post("/projects", json={"project_name": "异常降级项目"}).json()
+    chat_config = client.post(
+        "/model-configs",
+        json={
+            "config_name": "不可用推理",
+            "config_type": "chat",
+            "provider": "openai-compatible",
+            "base_url": "http://127.0.0.1:9/v1",
+            "api_key": "test-key",
+            "model": "bad-chat",
+            "is_default": 1,
+        },
+    ).json()
+    embedding_config = client.post(
+        "/model-configs",
+        json={
+            "config_name": "本地向量",
+            "config_type": "embedding",
+            "provider": "local",
+            "base_url": "",
+            "api_key": "",
+            "model": "local-hash",
+            "embedding_dimension": 64,
+            "is_default": 1,
+        },
+    ).json()
+
+    result = client.post(
+        f"/projects/{project['id']}/generate-checklist",
+        json={
+            "chat_model_config_id": chat_config["id"],
+            "embedding_model_config_id": embedding_config["id"],
+            "question_count": 2,
+            "modules": ["采购管理"],
+        },
+    ).json()
+
+    logs = client.get(f"/projects/{project['id']}/logs").json()
+    checklist = client.get(f"/projects/{project['id']}/checklist").json()
+
+    assert result["created_count"] == 2
+    assert len(checklist) == 2
+    assert any(log["status"] == "running" and "本地模板生成访谈问题" in log["message"] for log in logs)
+
+
 def test_core_local_flow(tmp_path: Path) -> None:
     # 测试使用临时 storage，避免污染用户真实运行数据。
     config.LEGACY_STORAGE_DIR = tmp_path / "legacy-storage"

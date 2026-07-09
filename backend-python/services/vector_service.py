@@ -68,9 +68,18 @@ def build_vector_index(project_id: int, config_id: int, batch_size: int = 16) ->
 
 
 def search_vector(project_id: int, query: str, config_id: int | None, top_k: int = 30) -> list[dict]:
-    config = get_model_config(config_id, "embedding") if config_id else get_model_config(None, "embedding")
+    # config_id=-1 是内部强制本地检索标记，用于模型异常降级时避免再次选中默认外部向量模型。
+    if config_id == -1:
+        config = None
+    else:
+        config = get_model_config(config_id, "embedding") if config_id else get_model_config(None, "embedding")
     dimension = int((config or {}).get("embedding_dimension") or 64)
-    query_vector = embed_query(query, config, dimension)
+    try:
+        query_vector = embed_query(query, config, dimension)
+    except Exception as exc:
+        # 检索阶段不能因为外部向量模型临时不可用而阻断清单生成，降级后仍可结合全文检索产出结果。
+        write_log(project_id, "retrieval", "warning", f"查询向量化失败，已使用本地检索降级：{exc}")
+        query_vector = embed_query(query, None, dimension)
     with db_cursor() as cur:
         rows = cur.execute(
             """

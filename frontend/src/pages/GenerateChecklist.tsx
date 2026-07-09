@@ -33,6 +33,10 @@ export function GenerateChecklist({ project }: { project: Project }) {
       });
       setMessage(`生成完成：${JSON.stringify(result)}`);
       await loadLogs();
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      setMessage(`生成失败：${detail}`);
+      await loadLogs();
     } finally {
       setRunning(false);
     }

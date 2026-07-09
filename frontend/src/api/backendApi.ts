@@ -9,7 +9,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   });
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `请求失败：${response.status}`);
+    let detail = "";
+    try {
+      const data = JSON.parse(text) as { detail?: unknown };
+      detail = typeof data.detail === "string" ? data.detail : "";
+    } catch {
+      // 非 JSON 错误保持原始文本，便于排查代理或网关异常。
+    }
+    throw new Error(detail || text || `请求失败：${response.status}`);
   }
   return response.json() as Promise<T>;
 }

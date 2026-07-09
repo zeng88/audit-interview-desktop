@@ -11,10 +11,15 @@ def generate_checklist(
     question_count: int,
     modules: list[str],
 ) -> dict:
+    write_log(project_id, "checklist", "running", "开始生成访谈问题", 0, question_count)
     questions = generate_questions(project_id, chat_model_config_id, question_count, modules)
     created = 0
     missing = 0
     total = len(questions)
+    # 如果问题生成已降级，后续答案也走本地归纳，避免同一不可用模型反复拖慢生成。
+    use_local_fallback = any(question.get("_local_fallback") for question in questions)
+    effective_chat_model_config_id = None if use_local_fallback else chat_model_config_id
+    effective_embedding_model_config_id = -1 if use_local_fallback else embedding_model_config_id
     if total:
         write_log(project_id, "checklist", "running", "开始生成访谈清单", 0, total)
     with db_cursor() as cur:
@@ -22,7 +27,7 @@ def generate_checklist(
         cur.execute("DELETE FROM missing_policy_items WHERE project_id = ?", (project_id,))
     for question in questions:
         try:
-            answer, _chunks = answer_question(project_id, question, chat_model_config_id, embedding_model_config_id)
+            answer, _chunks = answer_question(project_id, question, effective_chat_model_config_id, effective_embedding_model_config_id)
             with db_cursor() as cur:
                 cur.execute(
                     """
@@ -72,6 +77,10 @@ def generate_checklist(
             write_log(project_id, "checklist", "failed", f"问题生成失败：{question.get('question_id')}，{exc}", created, total)
             continue
         write_log(project_id, "checklist", "running", f"清单生成进度：{created}/{total}", created, total)
+    if total and created == 0:
+        message = "生成清单失败：所有问题均生成失败，请检查模型配置、向量索引和任务日志"
+        write_log(project_id, "checklist", "failed", message, created, total)
+        raise RuntimeError(message)
     write_log(project_id, "checklist", "success", f"生成访谈清单 {created} 条，无依据 {missing} 条", total, total)
     return {"created_count": created, "missing_count": missing}
 

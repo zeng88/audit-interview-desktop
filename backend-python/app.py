@@ -210,13 +210,17 @@ def search_test(project_id: int, payload: SearchRequest) -> dict:
 
 @app.post("/projects/{project_id}/generate-checklist")
 def generate(project_id: int, payload: GenerateChecklistRequest) -> dict:
-    return generate_checklist(
-        project_id,
-        payload.chat_model_config_id,
-        payload.embedding_model_config_id,
-        payload.question_count,
-        payload.modules,
-    )
+    try:
+        return generate_checklist(
+            project_id,
+            payload.chat_model_config_id,
+            payload.embedding_model_config_id,
+            payload.question_count,
+            payload.modules,
+        )
+    except Exception as exc:
+        write_log(project_id, "checklist", "failed", f"生成清单失败：{exc}")
+        raise _handle_error(exc)
 
 
 @app.get("/projects/{project_id}/checklist")
