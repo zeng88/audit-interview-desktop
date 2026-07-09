@@ -6,7 +6,7 @@ import type { ModelConfig, Project, TaskLog } from "../types";
 export function GenerateChecklist({ project }: { project: Project }) {
   const [models, setModels] = useState<ModelConfig[]>([]);
   const [logs, setLogs] = useState<TaskLog[]>([]);
-  const [questionCount, setQuestionCount] = useState(20);
+  const [questionCount, setQuestionCount] = useState(5);
   const [modules, setModules] = useState(project.focus_areas || "采购管理,合同管理,付款管理");
   const [message, setMessage] = useState("");
   const [running, setRunning] = useState(false);
@@ -31,7 +31,8 @@ export function GenerateChecklist({ project }: { project: Project }) {
         question_count: questionCount,
         modules: modules.split(/[,，]/).map((item) => item.trim()).filter(Boolean),
       });
-      setMessage(`生成完成：${JSON.stringify(result)}`);
+      const createdCount = Number(result.created_count || 0);
+      setMessage(createdCount < questionCount ? `生成完成：生成 ${createdCount} 条不重复清单，少于选择的 ${questionCount} 条，系统未重复凑数。` : `生成完成：生成 ${createdCount} 条清单。`);
       await loadLogs();
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);

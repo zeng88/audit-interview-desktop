@@ -6,6 +6,33 @@ from services.model_config_service import get_model_config
 from services.project_service import get_project
 
 
+def _question_key(question: dict) -> tuple[str, str, str]:
+    """用核心业务字段判断重复问题，避免靠编号凑数量。"""
+    return (
+        str(question.get("module") or "").strip(),
+        str(question.get("interview_role") or "").strip(),
+        str(question.get("interview_question") or "").strip(),
+    )
+
+
+def _dedupe_and_limit_questions(project_id: int, questions: list[dict], requested_count: int, source_label: str) -> list[dict]:
+    unique: list[dict] = []
+    seen: set[tuple[str, str, str]] = set()
+    for question in questions:
+        key = _question_key(question)
+        if not key[2] or key in seen:
+            continue
+        seen.add(key)
+        item = dict(question)
+        item["question_id"] = f"Q{len(unique) + 1:03d}"
+        unique.append(item)
+        if len(unique) >= requested_count:
+            break
+    if len(unique) < requested_count:
+        write_log(project_id, "checklist", "warning", f"{source_label}只生成了 {len(unique)} 个不重复问题，少于用户选择的 {requested_count} 个；系统不会重复凑数。", len(unique), requested_count)
+    return unique
+
+
 def _local_template_questions(
     project: dict,
     question_count: int,
@@ -19,12 +46,8 @@ def _local_template_questions(
         or settings["default_modules"]
     )
     templates = settings["question_templates"]
-    questions: list[dict] = []
-    for index in range(question_count):
-        module = selected_modules[index % len(selected_modules)]
-        template = templates[index % len(templates)]
-        item = {
-            "question_id": f"Q{index + 1:03d}",
+    questions = [
+        {
             "module": module,
             "interview_role": template["interview_role"],
             "interview_question": template["question_template"].format(module=module),
@@ -32,8 +55,10 @@ def _local_template_questions(
             "_generation_source": "local_template",
             "_generation_note": f"问题由本地模板生成；原因：{reason}",
         }
-        questions.append(item)
-    return questions
+        for module in selected_modules
+        for template in templates
+    ]
+    return _dedupe_and_limit_questions(project["id"], questions, question_count, "本地模板")
 
 
 def generate_questions(project_id: int, chat_model_config_id: int | None, question_count: int, modules: list[str]) -> list[dict]:
@@ -65,4 +90,4 @@ def generate_questions(project_id: int, chat_model_config_id: int | None, questi
     for question in questions:
         question["_generation_source"] = "configured_model"
         question["_generation_note"] = f"问题由配置推理模型生成：{config.get('config_name')} / {config.get('model')}"
-    return questions[:question_count]
+    return _dedupe_and_limit_questions(project_id, questions, question_count, "配置模型")

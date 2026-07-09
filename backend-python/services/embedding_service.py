@@ -5,6 +5,13 @@ from typing import Iterable
 import httpx
 
 
+def _raise_for_embedding_error(resp: httpx.Response) -> None:
+    """保留向量服务响应体，便于用户按真实原因修正模型配置。"""
+    if resp.status_code >= 400:
+        detail = resp.text[:1000]
+        raise RuntimeError(f"向量模型请求失败：HTTP {resp.status_code}，{detail}")
+
+
 def _fallback_embedding(text: str, dimension: int) -> list[float]:
     """无外部向量模型时使用确定性哈希向量，保证本地演示链路可跑通。"""
     vector = [0.0] * dimension
@@ -27,7 +34,7 @@ def embed_texts(texts: list[str], config: dict | None, dimension: int | None = N
     payload = {"model": config["model"], "input": texts}
     with httpx.Client(timeout=float(config.get("timeout_seconds") or 120)) as client:
         resp = client.post(f"{endpoint}/embeddings", headers=headers, json=payload)
-        resp.raise_for_status()
+        _raise_for_embedding_error(resp)
     data = resp.json()
     vectors = [item["embedding"] for item in data.get("data", [])]
     if len(vectors) != len(texts):
@@ -40,4 +47,3 @@ def embed_texts(texts: list[str], config: dict | None, dimension: int | None = N
 
 def embed_query(query: str, config: dict | None, dimension: int | None = None) -> list[float]:
     return embed_texts([query], config, dimension)[0]
-

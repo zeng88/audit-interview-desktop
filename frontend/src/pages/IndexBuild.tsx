@@ -11,6 +11,7 @@ export function IndexBuild({ project }: { project: Project }) {
   const [running, setRunning] = useState("");
   // 构建和检索都优先走默认向量模型，保证多个模型时用户选择生效。
   const embedding = models.find((item) => item.config_type === "embedding" && item.is_default) || models.find((item) => item.config_type === "embedding");
+  const embeddingBatchSize = Math.min(embedding?.embedding_batch_size || 10, 10);
   const loadLogs = () => backendApi.listLogs(project.id).then(setLogs);
   useEffect(() => { backendApi.listModelConfigs("embedding").then(setModels); loadLogs(); }, [project.id]);
   useEffect(() => {
@@ -37,7 +38,7 @@ export function IndexBuild({ project }: { project: Project }) {
       <div className="steps">
         <button disabled={!!running} onClick={() => run("解析文件", () => backendApi.parseFiles(project.id))}>1 解析文件</button>
         <button disabled={!!running} onClick={() => run("生成切片", () => backendApi.chunkFiles(project.id, 800, 120))}>2 生成切片</button>
-        <button disabled={!embedding || !!running} onClick={() => run("构建向量索引", () => backendApi.buildVectorIndex(project.id, embedding!.id, 16))}>3 构建向量索引</button>
+        <button disabled={!embedding || !!running} onClick={() => run("构建向量索引", () => backendApi.buildVectorIndex(project.id, embedding!.id, embeddingBatchSize))}>3 构建向量索引</button>
       </div>
       {running && <div className="notice">{running}执行中，页面会自动刷新进度。</div>}
       <div className="search-row">

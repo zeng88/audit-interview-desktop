@@ -61,7 +61,7 @@ class SearchRequest(BaseModel):
 class GenerateChecklistRequest(BaseModel):
     chat_model_config_id: int | None = None
     embedding_model_config_id: int | None = None
-    question_count: int = Field(default=20, ge=1, le=100)
+    question_count: int = Field(default=5, ge=1, le=100)
     modules: list[str] = Field(default_factory=list)
 
 

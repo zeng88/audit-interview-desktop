@@ -180,6 +180,94 @@ def test_generate_checklist_marks_configured_model_when_model_succeeds(monkeypat
     assert "可用推理" in checklist[0]["generation_note"]
 
 
+def test_generate_checklist_does_not_pad_duplicate_local_questions(monkeypatch, tmp_path: Path) -> None:
+    config.LEGACY_STORAGE_DIR = tmp_path / "legacy-storage"
+    _set_storage_paths(tmp_path / "storage")
+    init_db()
+    client = TestClient(app)
+
+    def broken_chat_json(*_args, **_kwargs):
+        raise RuntimeError("模型连接失败")
+
+    monkeypatch.setattr("services.audit_question_service.chat_json", broken_chat_json)
+
+    project = client.post("/projects", json={"project_name": "不重复问题项目"}).json()
+    chat_config = client.post(
+        "/model-configs",
+        json={
+            "config_name": "不可用推理",
+            "config_type": "chat",
+            "provider": "openai-compatible",
+            "base_url": "http://127.0.0.1:9/v1",
+            "api_key": "test-key",
+            "model": "bad-chat",
+            "is_default": 1,
+        },
+    ).json()
+
+    result = client.post(
+        f"/projects/{project['id']}/generate-checklist",
+        json={"chat_model_config_id": chat_config["id"], "question_count": 20, "modules": ["采购管理"]},
+    ).json()
+    checklist = client.get(f"/projects/{project['id']}/checklist").json()
+    questions = [item["interview_question"] for item in checklist]
+    logs = client.get(f"/projects/{project['id']}/logs").json()
+
+    assert result["created_count"] == 4
+    assert len(questions) == len(set(questions))
+    assert any("不会重复凑数" in log["message"] for log in logs)
+
+
+def test_vector_index_caps_remote_batch_size(monkeypatch, tmp_path: Path) -> None:
+    config.LEGACY_STORAGE_DIR = tmp_path / "legacy-storage"
+    _set_storage_paths(tmp_path / "storage")
+    init_db()
+
+    from db import db_cursor
+    from services.vector_service import build_vector_index
+
+    with db_cursor() as cur:
+        cur.execute(
+            "INSERT INTO projects(project_name, created_at, updated_at) VALUES('向量批量项目', '2026-07-09T10:00:00', '2026-07-09T10:00:00')"
+        )
+        project_id = cur.lastrowid
+        cur.execute(
+            """
+            INSERT INTO files(project_id, original_name, stored_path, file_type, file_size, created_at)
+            VALUES(?, '制度.md', '/tmp/制度.md', 'md', 1, '2026-07-09T10:00:00')
+            """,
+            (project_id,),
+        )
+        file_id = cur.lastrowid
+        cur.execute(
+            """
+            INSERT INTO model_configs(config_name, config_type, provider, base_url, api_key, model, embedding_dimension, embedding_batch_size, timeout_seconds, is_default, created_at, updated_at)
+            VALUES('远程向量', 'embedding', 'openai-compatible', 'https://example.test/v1', 'key', 'embedding-model', 4, 16, 30, 1, '2026-07-09T10:00:00', '2026-07-09T10:00:00')
+            """
+        )
+        model_id = cur.lastrowid
+        for index in range(12):
+            cur.execute(
+                """
+                INSERT INTO chunks(project_id, file_id, chunk_index, chunk_text, created_at)
+                VALUES(?, ?, ?, ?, '2026-07-09T10:00:00')
+                """,
+                (project_id, file_id, index, f"切片 {index}"),
+            )
+
+    batch_sizes: list[int] = []
+
+    def fake_embed_texts(texts, _config, dimension):
+        batch_sizes.append(len(texts))
+        return [[0.1] * int(dimension) for _ in texts]
+
+    monkeypatch.setattr("services.vector_service.embed_texts", fake_embed_texts)
+    result = build_vector_index(project_id, model_id, batch_size=16)
+
+    assert result["success_count"] == 12
+    assert max(batch_sizes) == 10
+
+
 def test_core_local_flow(tmp_path: Path) -> None:
     # 测试使用临时 storage，避免污染用户真实运行数据。
     config.LEGACY_STORAGE_DIR = tmp_path / "legacy-storage"

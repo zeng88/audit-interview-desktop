@@ -19,6 +19,10 @@ def build_vector_index(project_id: int, config_id: int, batch_size: int = 16) ->
     if not config:
         raise ValueError("向量模型配置不存在")
     dimension = int(config.get("embedding_dimension") or 64)
+    configured_batch_size = int(config.get("embedding_batch_size") or batch_size or 10)
+    # 火山 Ark embeddings 接口单次 input 最多 10 条；这里统一收敛，避免用户配置 16 时触发 400。
+    remote_batch_limit = 10 if config.get("api_key") and config.get("base_url") else 128
+    effective_batch_size = max(1, min(int(batch_size or configured_batch_size), configured_batch_size, remote_batch_limit))
     success = 0
     failed = 0
     with db_cursor() as cur:
@@ -29,8 +33,10 @@ def build_vector_index(project_id: int, config_id: int, batch_size: int = 16) ->
     total = len(chunks)
     if total:
         write_log(project_id, "embedding", "running", "开始构建向量索引", 0, total)
-    for start in range(0, total, batch_size):
-        batch = chunks[start : start + batch_size]
+        if effective_batch_size != batch_size:
+            write_log(project_id, "embedding", "warning", f"向量模型单批上限为 {effective_batch_size} 条，已自动调整批量大小", 0, total)
+    for start in range(0, total, effective_batch_size):
+        batch = chunks[start : start + effective_batch_size]
         try:
             vectors = embed_texts([row["chunk_text"] for row in batch], config, dimension)
             with db_cursor() as cur:
@@ -63,7 +69,11 @@ def build_vector_index(project_id: int, config_id: int, batch_size: int = 16) ->
                         (str(exc), row["id"]),
                     )
             write_log(project_id, "embedding", "failed", f"向量化批次失败：{exc}", min(start + len(batch), total), total)
-    write_log(project_id, "embedding", "success", f"向量索引完成：成功 {success}，失败 {failed}", total, total)
+    if failed:
+        status = "failed" if success == 0 else "warning"
+        write_log(project_id, "embedding", status, f"向量索引完成：成功 {success}，失败 {failed}。请查看上方失败原因。", total, total)
+    else:
+        write_log(project_id, "embedding", "success", f"向量索引完成：成功 {success}，失败 0", total, total)
     return {"success_count": success, "failed_count": failed, "mode": "fallback-cosine"}
 
 
