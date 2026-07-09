@@ -35,6 +35,7 @@ export const backendApi = {
   createModelConfig: (data: Partial<ModelConfig>) => request<ModelConfig>("/model-configs", { method: "POST", body: JSON.stringify(data) }),
   updateModelConfig: (id: number, data: Partial<ModelConfig>) => request<ModelConfig>(`/model-configs/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteModelConfig: (id: number) => request<{ ok: boolean }>(`/model-configs/${id}`, { method: "DELETE" }),
+  setDefaultModel: (id: number) => request<ModelConfig>(`/model-configs/${id}/default`, { method: "POST" }),
   testModelConfig: (id: number) => request<Record<string, unknown>>(`/model-configs/${id}/test`, { method: "POST" }),
   buildVectorIndex: (projectId: number, embeddingId: number, batchSize: number) =>
     request<Record<string, unknown>>(`/projects/${projectId}/build-vector-index`, {

@@ -10,8 +10,9 @@ export function GenerateChecklist({ project }: { project: Project }) {
   const [modules, setModules] = useState(project.focus_areas || "采购管理,合同管理,付款管理");
   const [message, setMessage] = useState("");
   const [running, setRunning] = useState(false);
-  const chat = models.find((item) => item.config_type === "chat");
-  const embedding = models.find((item) => item.config_type === "embedding");
+  // 多模型场景下优先使用用户设置的默认模型，未设置时再回退到列表首个模型。
+  const chat = models.find((item) => item.config_type === "chat" && item.is_default) || models.find((item) => item.config_type === "chat");
+  const embedding = models.find((item) => item.config_type === "embedding" && item.is_default) || models.find((item) => item.config_type === "embedding");
   const loadLogs = () => backendApi.listLogs(project.id).then(setLogs);
   useEffect(() => { backendApi.listModelConfigs().then(setModels); loadLogs(); }, [project.id]);
   useEffect(() => {

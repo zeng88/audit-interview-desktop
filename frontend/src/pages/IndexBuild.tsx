@@ -9,7 +9,8 @@ export function IndexBuild({ project }: { project: Project }) {
   const [query, setQuery] = useState("采购需求审批流程是什么？");
   const [result, setResult] = useState("");
   const [running, setRunning] = useState("");
-  const embedding = models.find((item) => item.config_type === "embedding");
+  // 构建和检索都优先走默认向量模型，保证多个模型时用户选择生效。
+  const embedding = models.find((item) => item.config_type === "embedding" && item.is_default) || models.find((item) => item.config_type === "embedding");
   const loadLogs = () => backendApi.listLogs(project.id).then(setLogs);
   useEffect(() => { backendApi.listModelConfigs("embedding").then(setModels); loadLogs(); }, [project.id]);
   useEffect(() => {
