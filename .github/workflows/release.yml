@@ -115,21 +115,16 @@ jobs:
         run: |
           # 统一收集安装包，缺少目标产物时直接失败，避免发布空 Release。
           set -euo pipefail
-          shopt -s globstar nullglob
           mkdir -p release-assets
-          files=(
-            src-tauri/target/**/release/bundle/**/*.dmg
-            src-tauri/target/**/release/bundle/**/*.deb
-            src-tauri/target/**/release/bundle/**/*.exe
-          )
-          if [ ${#files[@]} -eq 0 ]; then
+          find src-tauri/target -type f \( -name "*.dmg" -o -name "*.deb" -o -name "*.exe" \) > installer-files.txt
+          if [ ! -s installer-files.txt ]; then
             echo "No installer files were generated."
             find src-tauri/target -maxdepth 6 -type f | sort
             exit 1
           fi
-          for file in "${files[@]}"; do
+          while IFS= read -r file; do
             cp "$file" release-assets/
-          done
+          done < installer-files.txt
           ls -lh release-assets
 
       - uses: actions/upload-artifact@v4
