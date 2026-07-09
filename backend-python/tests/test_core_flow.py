@@ -68,6 +68,8 @@ def test_core_local_flow(tmp_path: Path) -> None:
         files={"file": ("采购管理制度.md", content.encode("utf-8"), "text/markdown")},
     )
     assert response.status_code == 200
+    storage_location = client.get("/storage-location").json()
+    assert storage_location["files_dir"] == str(config.FILES_DIR)
 
     assert client.post(f"/projects/{project_id}/parse").json()["parsed_count"] == 1
     parse_progress = client.get(f"/projects/{project_id}/task-progress?task_type=parse").json()

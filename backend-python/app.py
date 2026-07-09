@@ -6,6 +6,7 @@ import uvicorn
 from fastapi import FastAPI, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
+import config
 from config import APP_VERSION
 from db import db_cursor, init_db
 from schemas import (
@@ -77,6 +78,16 @@ def stats() -> dict:
             "files": cur.execute("SELECT COUNT(*) AS c FROM files").fetchone()["c"],
             "chunks": cur.execute("SELECT COUNT(*) AS c FROM chunks").fetchone()["c"],
         }
+
+
+@app.get("/storage-location")
+def storage_location() -> dict:
+    # 返回后端实际使用的绝对目录，前端据此展示给用户，避免不同系统路径说明不清。
+    return {
+        "storage_dir": str(config.STORAGE_DIR),
+        "files_dir": str(config.FILES_DIR),
+        "exports_dir": str(config.EXPORTS_DIR),
+    }
 
 
 @app.post("/projects")

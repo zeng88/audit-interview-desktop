@@ -1,4 +1,4 @@
-import type { AuditFile, ChecklistItem, MissingPolicyItem, ModelConfig, Project, TaskLog } from "../types";
+import type { AuditFile, ChecklistItem, MissingPolicyItem, ModelConfig, Project, StorageLocation, TaskLog } from "../types";
 
 const API_BASE = import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:8765";
 
@@ -16,6 +16,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const backendApi = {
   health: () => request<{ status: string; version: string }>("/health"),
+  storageLocation: () => request<StorageLocation>("/storage-location"),
   listProjects: () => request<Project[]>("/projects"),
   createProject: (data: Partial<Project>) => request<Project>("/projects", { method: "POST", body: JSON.stringify(data) }),
   deleteProject: (id: number) => request<{ ok: boolean }>(`/projects/${id}`, { method: "DELETE" }),

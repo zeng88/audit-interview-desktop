@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import { backendApi } from "../api/backendApi";
-import type { AuditFile, Project } from "../types";
+import type { AuditFile, Project, StorageLocation } from "../types";
 
 export function FileUpload({ project }: { project: Project }) {
   const [files, setFiles] = useState<AuditFile[]>([]);
+  const [storageLocation, setStorageLocation] = useState<StorageLocation | null>(null);
   const [message, setMessage] = useState("");
   const load = () => backendApi.listFiles(project.id).then(setFiles);
-  useEffect(() => { load(); }, [project.id]);
+  useEffect(() => {
+    load();
+    backendApi.storageLocation().then(setStorageLocation).catch(() => setStorageLocation(null));
+  }, [project.id]);
 
   const upload = async (selected: FileList | null) => {
     if (!selected) return;
@@ -22,7 +26,8 @@ export function FileUpload({ project }: { project: Project }) {
       <label className="dropzone">
         <input type="file" multiple accept=".pdf,.docx,.xlsx,.txt,.csv,.md,.markdown" onChange={(e) => upload(e.target.files)} />
         <strong>选择或拖入制度文件</strong>
-        <span>文件将保存在系统用户数据目录</span>
+        <span>上传文件保存位置</span>
+        <code className="path-hint">{storageLocation?.files_dir || "正在读取本机存储路径..."}</code>
       </label>
       {message && <div className="notice">{message}</div>}
       <div className="table-wrap">

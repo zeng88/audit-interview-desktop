@@ -38,6 +38,12 @@ export type AuditFile = {
   created_at: string;
 };
 
+export type StorageLocation = {
+  storage_dir: string;
+  files_dir: string;
+  exports_dir: string;
+};
+
 export type ChecklistItem = {
   id: number;
   question_id: string;

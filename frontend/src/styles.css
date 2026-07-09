@@ -42,6 +42,7 @@ textarea { min-height: 86px; resize: vertical; }
 .actions, .row-actions, .steps, .filters, .search-row { display: flex; gap: 10px; align-items: center; margin: 14px 0; flex-wrap: wrap; }
 .dropzone { display: grid; place-items: center; gap: 8px; min-height: 140px; border: 1px dashed #94a3b8; border-radius: 8px; background: white; margin-bottom: 16px; cursor: pointer; }
 .dropzone input { display: none; }
+.path-hint { max-width: min(860px, 100%); padding: 6px 8px; border-radius: 6px; background: #f1f5f9; color: #334155; font-size: 12px; overflow-wrap: anywhere; text-align: center; cursor: text; }
 .table-wrap { overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: white; }
 table { width: 100%; border-collapse: collapse; min-width: 980px; }
 th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
