@@ -13,9 +13,9 @@ def export_docx(path: Path, project: dict, checklist: list[dict], missing: list[
     doc.add_paragraph(f"审计期间：{project.get('audit_period', '')}")
 
     doc.add_heading("访谈清单", level=2)
-    table = doc.add_table(rows=1, cols=6)
+    table = doc.add_table(rows=1, cols=7)
     table.style = "Table Grid"
-    for idx, header in enumerate(["编号", "模块", "访谈对象", "访谈问题", "制度依据答案", "来源"]):
+    for idx, header in enumerate(["编号", "模块", "访谈对象", "访谈问题", "制度依据答案", "生成方式", "来源"]):
         table.rows[0].cells[idx].text = header
     for index, item in enumerate(checklist, start=1):
         row = table.add_row().cells
@@ -24,7 +24,8 @@ def export_docx(path: Path, project: dict, checklist: list[dict], missing: list[
         row[2].text = item.get("interview_role") or ""
         row[3].text = item.get("interview_question") or ""
         row[4].text = item.get("expected_answer") or ""
-        row[5].text = f"{item.get('source_file') or ''} {item.get('source_location') or ''}"
+        row[5].text = "配置模型" if item.get("generation_source") == "configured_model" else "本地模板"
+        row[6].text = f"{item.get('source_file') or ''} {item.get('source_location') or ''}"
 
     doc.add_heading("制度缺失清单", level=2)
     if missing:
@@ -35,5 +36,6 @@ def export_docx(path: Path, project: dict, checklist: list[dict], missing: list[
 
     doc.add_heading("生成说明", level=2)
     doc.add_paragraph("本文件由本地审计访谈清单生成工具生成，制度依据仅来自已上传制度片段。")
+    for item in checklist:
+        doc.add_paragraph(f"{item.get('question_id') or ''}：{item.get('generation_note') or '无生成说明'}")
     doc.save(path)
-

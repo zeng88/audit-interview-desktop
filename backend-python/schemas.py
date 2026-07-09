@@ -31,6 +31,17 @@ class ModelConfigIn(BaseModel):
     is_default: int = 0
 
 
+class LocalQuestionTemplate(BaseModel):
+    interview_role: str
+    question_template: str
+    keywords: list[str] = Field(default_factory=list)
+
+
+class LocalTemplateSettingsIn(BaseModel):
+    default_modules: list[str] = Field(default_factory=list)
+    question_templates: list[LocalQuestionTemplate] = Field(default_factory=list)
+
+
 class ChunkRequest(BaseModel):
     chunk_size: int = Field(default=800, ge=100, le=3000)
     overlap: int = Field(default=120, ge=0, le=1000)
@@ -71,4 +82,3 @@ class ApiResult(BaseModel):
     ok: bool = True
     data: Any | None = None
     message: str = ""
-

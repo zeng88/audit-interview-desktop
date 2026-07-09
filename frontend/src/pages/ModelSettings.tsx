@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { backendApi } from "../api/backendApi";
-import type { ModelConfig } from "../types";
+import type { LocalTemplateSettings, ModelConfig } from "../types";
 
 type ModelForm = Omit<ModelConfig, "id">;
 
@@ -25,9 +25,11 @@ export function ModelSettings() {
   const [configs, setConfigs] = useState<ModelConfig[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<ModelForm>(emptyForm);
+  const [localTemplateSettings, setLocalTemplateSettings] = useState<LocalTemplateSettings | null>(null);
   const [message, setMessage] = useState("");
   const load = () => backendApi.listModelConfigs().then(setConfigs);
-  useEffect(() => { load(); }, []);
+  const loadLocalTemplateSettings = () => backendApi.getLocalTemplateSettings().then(setLocalTemplateSettings);
+  useEffect(() => { load(); loadLocalTemplateSettings(); }, []);
   const update = <K extends keyof ModelForm>(key: K, value: ModelForm[K]) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const buildPayload = () => {
@@ -102,6 +104,41 @@ export function ModelSettings() {
     await load();
   };
 
+  const saveLocalTemplateSettings = async () => {
+    if (!localTemplateSettings) return;
+    const settings = await backendApi.updateLocalTemplateSettings(localTemplateSettings);
+    setLocalTemplateSettings(settings);
+    setMessage("本地模板设置已保存");
+  };
+
+  const updateLocalTemplateModules = (value: string) => {
+    setLocalTemplateSettings((prev) => prev ? ({ ...prev, default_modules: value.split(/[,，]/).map((item) => item.trim()).filter(Boolean) }) : prev);
+  };
+
+  const updateLocalQuestionTemplate = (index: number, key: "interview_role" | "question_template" | "keywords", value: string) => {
+    setLocalTemplateSettings((prev) => {
+      if (!prev) return prev;
+      const question_templates = prev.question_templates.map((item, itemIndex) => {
+        if (itemIndex !== index) return item;
+        return key === "keywords"
+          ? { ...item, keywords: value.split(/[,，]/).map((keyword) => keyword.trim()).filter(Boolean) }
+          : { ...item, [key]: value };
+      });
+      return { ...prev, question_templates };
+    });
+  };
+
+  const addLocalQuestionTemplate = () => {
+    setLocalTemplateSettings((prev) => prev ? ({
+      ...prev,
+      question_templates: [...prev.question_templates, { interview_role: "访谈对象", question_template: "请说明{module}的控制要求和执行情况。", keywords: ["控制", "执行"] }],
+    }) : prev);
+  };
+
+  const removeLocalQuestionTemplate = (index: number) => {
+    setLocalTemplateSettings((prev) => prev ? ({ ...prev, question_templates: prev.question_templates.filter((_, itemIndex) => itemIndex !== index) }) : prev);
+  };
+
   return (
     <div>
       <div className="page-head"><div><h1>模型配置</h1><p>可配置 OpenAI-compatible 推理模型和向量模型；不填密钥时走本地降级模式。</p></div></div>
@@ -155,6 +192,27 @@ export function ModelSettings() {
             ))}
           </tbody>
         </table>
+      </div>
+      <div className="panel">
+        <div className="panel-title">本地模板设置</div>
+        <p className="muted">配置模型不可用时，系统会使用这里的本地模板生成清单，并在日志和结果中标注来源。</p>
+        {!localTemplateSettings && <div className="muted">正在读取本地模板设置...</div>}
+        {localTemplateSettings && (
+          <>
+            <label className="wide">默认模块<input value={localTemplateSettings.default_modules.join("，")} onChange={(e) => updateLocalTemplateModules(e.target.value)} /></label>
+            <div className="template-list">
+              {localTemplateSettings.question_templates.map((template, index) => (
+                <div className="template-row" key={`${template.interview_role}-${index}`}>
+                  <label>访谈对象<input value={template.interview_role} onChange={(e) => updateLocalQuestionTemplate(index, "interview_role", e.target.value)} /></label>
+                  <label>问题模板<input value={template.question_template} onChange={(e) => updateLocalQuestionTemplate(index, "question_template", e.target.value)} /></label>
+                  <label>检索关键词<input value={template.keywords.join("，")} onChange={(e) => updateLocalQuestionTemplate(index, "keywords", e.target.value)} /></label>
+                  <button onClick={() => removeLocalQuestionTemplate(index)}>删除</button>
+                </div>
+              ))}
+            </div>
+            <div className="actions"><button onClick={addLocalQuestionTemplate}>新增模板</button><button onClick={saveLocalTemplateSettings}>保存本地模板</button><button onClick={loadLocalTemplateSettings}>恢复当前配置</button></div>
+          </>
+        )}
       </div>
     </div>
   );

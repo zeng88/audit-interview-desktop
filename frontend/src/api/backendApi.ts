@@ -1,4 +1,4 @@
-import type { AuditFile, ChecklistItem, MissingPolicyItem, ModelConfig, Project, StorageLocation, TaskLog } from "../types";
+import type { AuditFile, ChecklistItem, LocalTemplateSettings, MissingPolicyItem, ModelConfig, Project, StorageLocation, TaskLog } from "../types";
 
 const API_BASE = import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:8765";
 
@@ -44,6 +44,9 @@ export const backendApi = {
   deleteModelConfig: (id: number) => request<{ ok: boolean }>(`/model-configs/${id}`, { method: "DELETE" }),
   setDefaultModel: (id: number) => request<ModelConfig>(`/model-configs/${id}/default`, { method: "POST" }),
   testModelConfig: (id: number) => request<Record<string, unknown>>(`/model-configs/${id}/test`, { method: "POST" }),
+  getLocalTemplateSettings: () => request<LocalTemplateSettings>("/local-template-settings"),
+  updateLocalTemplateSettings: (data: LocalTemplateSettings) =>
+    request<LocalTemplateSettings>("/local-template-settings", { method: "PUT", body: JSON.stringify(data) }),
   buildVectorIndex: (projectId: number, embeddingId: number, batchSize: number) =>
     request<Record<string, unknown>>(`/projects/${projectId}/build-vector-index`, {
       method: "POST",

@@ -1,36 +1,37 @@
-import os
-
 from prompts.question_generation_prompt import build_question_prompt
 from services.llm_service import chat_json
+from services.local_template_service import get_local_template_settings
 from services.log_service import write_log
 from services.model_config_service import get_model_config
 from services.project_service import get_project
 
 
-DEFAULT_MODULES = ["采购管理", "合同管理", "付款管理", "供应商管理", "授权审批", "资料留痕"]
-
-
-def _fallback_questions(project: dict, question_count: int, modules: list[str], local_fallback: bool = False) -> list[dict]:
-    selected_modules = modules or [item.strip() for item in (project.get("focus_areas") or "").split(",") if item.strip()] or DEFAULT_MODULES
-    templates = [
-        ("流程负责人", "请说明{module}的主要流程、关键审批节点和职责分工。", ["流程", "审批", "职责", "分工"]),
-        ("业务经办人", "请说明{module}相关资料如何提交、复核和归档留痕。", ["资料", "复核", "归档", "留痕"]),
-        ("部门负责人", "请说明{module}发生例外事项时的审批和记录要求。", ["例外", "审批", "记录", "要求"]),
-        ("内控负责人", "请说明公司如何监督检查{module}制度执行情况。", ["监督", "检查", "执行", "制度"]),
-    ]
+def _local_template_questions(
+    project: dict,
+    question_count: int,
+    modules: list[str],
+    reason: str,
+) -> list[dict]:
+    settings = get_local_template_settings()
+    selected_modules = (
+        modules
+        or [item.strip() for item in (project.get("focus_areas") or "").replace("，", ",").split(",") if item.strip()]
+        or settings["default_modules"]
+    )
+    templates = settings["question_templates"]
     questions: list[dict] = []
     for index in range(question_count):
         module = selected_modules[index % len(selected_modules)]
-        role, text, keywords = templates[index % len(templates)]
+        template = templates[index % len(templates)]
         item = {
             "question_id": f"Q{index + 1:03d}",
             "module": module,
-            "interview_role": role,
-            "interview_question": text.format(module=module),
-            "search_keywords": [module, *keywords],
+            "interview_role": template["interview_role"],
+            "interview_question": template["question_template"].format(module=module),
+            "search_keywords": [module, *template.get("keywords", [])],
+            "_generation_source": "local_template",
+            "_generation_note": f"问题由本地模板生成；原因：{reason}",
         }
-        if local_fallback:
-            item["_local_fallback"] = True
         questions.append(item)
     return questions
 
@@ -38,21 +39,30 @@ def _fallback_questions(project: dict, question_count: int, modules: list[str], 
 def generate_questions(project_id: int, chat_model_config_id: int | None, question_count: int, modules: list[str]) -> list[dict]:
     project = get_project(project_id)
     config = get_model_config(chat_model_config_id, "chat") if chat_model_config_id else get_model_config(None, "chat")
-    if os.environ.get("AUDIT_USE_REMOTE_QUESTION_GENERATION") != "1":
-        # 本地桌面交互优先保证立即产出可见结果；远程推理生成可通过环境变量显式开启。
-        write_log(project_id, "checklist", "running", "使用本地模板生成访谈问题", 0, question_count)
-        return _fallback_questions(project, question_count, modules, local_fallback=True)
-    if not config or not config.get("api_key"):
-        return _fallback_questions(project, question_count, modules)
+    if not config:
+        reason = "未配置默认推理模型"
+        write_log(project_id, "checklist", "warning", f"{reason}，已使用本地模板生成访谈问题", 0, question_count)
+        return _local_template_questions(project, question_count, modules, reason)
+    if not config.get("api_key") or not config.get("base_url"):
+        reason = f"推理模型 {config.get('config_name')} 未配置 API Key 或 Base URL"
+        write_log(project_id, "checklist", "warning", f"{reason}，已使用本地模板生成访谈问题", 0, question_count)
+        return _local_template_questions(project, question_count, modules, reason)
+
+    write_log(project_id, "checklist", "running", f"使用配置推理模型生成访谈问题：{config.get('config_name')} / {config.get('model')}", 0, question_count)
     prompt = build_question_prompt(project, question_count, modules)
     try:
         data = chat_json(prompt, config)
     except Exception as exc:
-        # 推理模型不可用时不阻断清单生成，降级模板保证用户能看到可用结果。
-        write_log(project_id, "checklist", "warning", f"推理模型生成问题失败，已使用本地模板降级：{exc}", 0, question_count)
-        return _fallback_questions(project, question_count, modules, local_fallback=True)
+        reason = f"推理模型 {config.get('config_name')} 调用失败：{exc}"
+        write_log(project_id, "checklist", "warning", f"{reason}；已使用本地模板生成访谈问题", 0, question_count)
+        return _local_template_questions(project, question_count, modules, reason)
     questions = data.get("questions", [])
     if not isinstance(questions, list) or not questions:
-        write_log(project_id, "checklist", "warning", "推理模型未返回有效问题，已使用本地模板降级", 0, question_count)
-        return _fallback_questions(project, question_count, modules, local_fallback=True)
+        reason = f"推理模型 {config.get('config_name')} 未返回有效问题"
+        write_log(project_id, "checklist", "warning", f"{reason}，已使用本地模板生成访谈问题", 0, question_count)
+        return _local_template_questions(project, question_count, modules, reason)
+
+    for question in questions:
+        question["_generation_source"] = "configured_model"
+        question["_generation_note"] = f"问题由配置推理模型生成：{config.get('config_name')} / {config.get('model')}"
     return questions[:question_count]

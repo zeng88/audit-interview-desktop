@@ -57,6 +57,19 @@ export type ChecklistItem = {
   confidence: string;
   follow_up_question: string;
   risk_hint: string;
+  generation_source: "configured_model" | "local_template" | "unknown";
+  generation_note: string;
+};
+
+export type LocalQuestionTemplate = {
+  interview_role: string;
+  question_template: string;
+  keywords: string[];
+};
+
+export type LocalTemplateSettings = {
+  default_modules: string[];
+  question_templates: LocalQuestionTemplate[];
 };
 
 export type MissingPolicyItem = {

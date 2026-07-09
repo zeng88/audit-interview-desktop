@@ -115,7 +115,69 @@ def test_generate_checklist_falls_back_when_chat_model_fails(monkeypatch, tmp_pa
     assert result["created_count"] == 2
     assert len(checklist) == 2
     assert all(item["expected_answer"] for item in checklist)
-    assert any(log["status"] == "running" and "本地模板生成访谈问题" in log["message"] for log in logs)
+    assert all(item["generation_source"] == "local_template" for item in checklist)
+    assert all("本地" in item["generation_note"] for item in checklist)
+    assert any(log["status"] == "warning" and "模型连接失败" in log["message"] for log in logs)
+
+
+def test_generate_checklist_marks_configured_model_when_model_succeeds(monkeypatch, tmp_path: Path) -> None:
+    config.LEGACY_STORAGE_DIR = tmp_path / "legacy-storage"
+    _set_storage_paths(tmp_path / "storage")
+    init_db()
+    client = TestClient(app)
+
+    def fake_question_json(*_args, **_kwargs):
+        return {
+            "questions": [
+                {
+                    "question_id": "Q001",
+                    "module": "采购管理",
+                    "interview_role": "采购负责人",
+                    "interview_question": "请说明采购审批如何执行。",
+                    "search_keywords": ["采购", "审批"],
+                }
+            ]
+        }
+
+    def fake_answer_json(*_args, **_kwargs):
+        return {
+            "expected_answer": "配置模型生成的答案",
+            "source_file": "模型依据",
+            "source_location": "模型输出",
+            "evidence_quote": "模型引用",
+            "confidence": "中",
+            "follow_up_question": "配置模型追问",
+            "risk_hint": "配置模型风险提示",
+            "is_missing_policy": False,
+            "missing_policy_issue": "",
+        }
+
+    monkeypatch.setattr("services.audit_question_service.chat_json", fake_question_json)
+    monkeypatch.setattr("services.evidence_service.chat_json", fake_answer_json)
+
+    project = client.post("/projects", json={"project_name": "配置模型项目"}).json()
+    chat_config = client.post(
+        "/model-configs",
+        json={
+            "config_name": "可用推理",
+            "config_type": "chat",
+            "provider": "openai-compatible",
+            "base_url": "http://model.test/v1",
+            "api_key": "test-key",
+            "model": "good-chat",
+            "is_default": 1,
+        },
+    ).json()
+
+    result = client.post(
+        f"/projects/{project['id']}/generate-checklist",
+        json={"chat_model_config_id": chat_config["id"], "question_count": 1, "modules": ["采购管理"]},
+    ).json()
+    checklist = client.get(f"/projects/{project['id']}/checklist").json()
+
+    assert result["created_count"] == 1
+    assert checklist[0]["generation_source"] == "configured_model"
+    assert "可用推理" in checklist[0]["generation_note"]
 
 
 def test_core_local_flow(tmp_path: Path) -> None:

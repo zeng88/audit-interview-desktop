@@ -10,6 +10,10 @@ export function EvidenceDrawer({ item, onClose }: { item: ChecklistItem | null; 
           <button onClick={onClose}>关闭</button>
         </div>
         <dl>
+          <dt>生成方式</dt>
+          <dd>{item.generation_source === "configured_model" ? "配置模型生成" : "本地模板/规则生成"}</dd>
+          <dt>生成说明</dt>
+          <dd>{item.generation_note || "无"}</dd>
           <dt>来源文件</dt>
           <dd>{item.source_file || "无"}</dd>
           <dt>来源位置</dt>
@@ -25,4 +29,3 @@ export function EvidenceDrawer({ item, onClose }: { item: ChecklistItem | null; 
     </div>
   );
 }
-

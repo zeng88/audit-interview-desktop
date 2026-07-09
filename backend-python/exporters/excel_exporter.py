@@ -1,7 +1,7 @@
 from pathlib import Path
 
 
-HEADERS = ["编号", "审计模块", "访谈对象", "访谈问题", "制度依据答案", "来源文件", "来源位置", "原文摘录", "置信度", "建议追问", "风险提示"]
+HEADERS = ["编号", "审计模块", "访谈对象", "访谈问题", "制度依据答案", "生成方式", "生成说明", "来源文件", "来源位置", "原文摘录", "置信度", "建议追问", "风险提示"]
 
 
 def export_xlsx(path: Path, checklist: list[dict], missing: list[dict]) -> None:
@@ -24,6 +24,8 @@ def export_xlsx(path: Path, checklist: list[dict], missing: list[dict]) -> None:
                 item.get("interview_role"),
                 item.get("interview_question"),
                 item.get("expected_answer"),
+                "配置模型" if item.get("generation_source") == "configured_model" else "本地模板",
+                item.get("generation_note"),
                 item.get("source_file"),
                 item.get("source_location"),
                 item.get("evidence_quote"),
@@ -48,4 +50,3 @@ def export_xlsx(path: Path, checklist: list[dict], missing: list[dict]) -> None:
             ]
         )
     workbook.save(path)
-

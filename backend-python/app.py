@@ -15,6 +15,7 @@ from schemas import (
     ChunkRequest,
     ExportRequest,
     GenerateChecklistRequest,
+    LocalTemplateSettingsIn,
     ModelConfigIn,
     ProjectCreate,
     ProjectUpdate,
@@ -29,6 +30,7 @@ from services.checklist_service import (
 )
 from services.chunk_service import build_chunks
 from services.export_service import export_project
+from services.local_template_service import get_local_template_settings, update_local_template_settings
 from services.log_service import latest_progress, list_logs, write_log
 from services.parse_service import parse_project_files
 from services.retrieval_service import hybrid_search
@@ -163,6 +165,19 @@ def set_default_model(config_id: int) -> dict:
 @app.post("/model-configs/{config_id}/test")
 def test_model_config(config_id: int) -> dict:
     return model_config_service.test_model_config(config_id)
+
+
+@app.get("/local-template-settings")
+def local_template_settings() -> dict:
+    return get_local_template_settings()
+
+
+@app.put("/local-template-settings")
+def update_local_template_settings_api(payload: LocalTemplateSettingsIn) -> dict:
+    try:
+        return update_local_template_settings(payload.model_dump())
+    except Exception as exc:
+        raise _handle_error(exc)
 
 
 @app.post("/projects/{project_id}/files")

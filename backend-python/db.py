@@ -268,6 +268,8 @@ def init_db() -> None:
                 confidence TEXT,
                 follow_up_question TEXT,
                 risk_hint TEXT,
+                generation_source TEXT DEFAULT 'unknown',
+                generation_note TEXT,
                 created_at TEXT NOT NULL,
                 FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
             );
@@ -304,6 +306,15 @@ def init_db() -> None:
         ):
             try:
                 conn.execute(f"ALTER TABLE task_logs ADD COLUMN {column} {definition}")
+            except sqlite3.OperationalError:
+                # 兼容旧数据库：字段已存在时忽略。
+                pass
+        for column, definition in (
+            ("generation_source", "TEXT DEFAULT 'unknown'"),
+            ("generation_note", "TEXT"),
+        ):
+            try:
+                conn.execute(f"ALTER TABLE checklist_items ADD COLUMN {column} {definition}")
             except sqlite3.OperationalError:
                 # 兼容旧数据库：字段已存在时忽略。
                 pass

@@ -18,6 +18,7 @@ export function ChecklistTable({
             <th>访谈问题</th>
             <th>制度依据答案</th>
             <th>置信度</th>
+            <th>生成方式</th>
             <th>来源</th>
           </tr>
         </thead>
@@ -30,6 +31,7 @@ export function ChecklistTable({
               <td>{item.interview_question}</td>
               <td>{item.expected_answer}</td>
               <td><span className={`confidence c-${item.confidence}`}>{item.confidence}</span></td>
+              <td><span className={`pill ${item.generation_source === "configured_model" ? "success" : "warning"}`}>{item.generation_source === "configured_model" ? "配置模型" : "本地模板"}</span></td>
               <td>{item.source_file || "无依据"}</td>
             </tr>
           ))}
@@ -38,4 +40,3 @@ export function ChecklistTable({
     </div>
   );
 }
-

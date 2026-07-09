@@ -16,8 +16,8 @@ def generate_checklist(
     created = 0
     missing = 0
     total = len(questions)
-    # 如果问题生成已降级，后续答案也走本地归纳，避免同一不可用模型反复拖慢生成。
-    use_local_fallback = any(question.get("_local_fallback") for question in questions)
+    # 问题生成已经降级时，后续答案和检索也直接走本地逻辑，避免同一失败模型被重复调用。
+    use_local_fallback = any(question.get("_generation_source") == "local_template" for question in questions)
     effective_chat_model_config_id = -1 if use_local_fallback else chat_model_config_id
     effective_embedding_model_config_id = -1 if use_local_fallback else embedding_model_config_id
     if total:
@@ -28,14 +28,17 @@ def generate_checklist(
     for question in questions:
         try:
             answer, _chunks = answer_question(project_id, question, effective_chat_model_config_id, effective_embedding_model_config_id)
+            generation_source = "configured_model" if question.get("_generation_source") == "configured_model" and answer.get("answer_source") == "configured_model" else "local_template"
+            generation_note = answer.get("generation_note") or question.get("_generation_note") or ""
             with db_cursor() as cur:
                 cur.execute(
                     """
                     INSERT INTO checklist_items(
                         project_id, question_id, module, interview_role, interview_question,
                         expected_answer, source_file, source_location, evidence_quote,
-                        confidence, follow_up_question, risk_hint, created_at
-                    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        confidence, follow_up_question, risk_hint,
+                        generation_source, generation_note, created_at
+                    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         project_id,
@@ -50,6 +53,8 @@ def generate_checklist(
                         answer.get("confidence"),
                         answer.get("follow_up_question"),
                         answer.get("risk_hint"),
+                        generation_source,
+                        generation_note,
                         now_iso(),
                     ),
                 )
