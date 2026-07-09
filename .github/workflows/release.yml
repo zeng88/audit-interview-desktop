@@ -112,18 +112,20 @@ jobs:
 
       - name: Collect installers
         shell: bash
+        env:
+          ARTIFACT_NAME: ${{ matrix.artifactName }}
         run: |
           # 统一收集安装包，缺少目标产物时直接失败，避免发布空 Release。
           set -euo pipefail
           mkdir -p release-assets
-          find src-tauri/target -type f \( -name "*.dmg" -o -name "*.deb" -o -name "*.exe" \) > installer-files.txt
+          find src-tauri/target -type f -path "*/release/bundle/*" \( -name "*.dmg" -o -name "*.deb" -o -name "*.exe" \) > installer-files.txt
           if [ ! -s installer-files.txt ]; then
             echo "No installer files were generated."
             find src-tauri/target -maxdepth 6 -type f | sort
             exit 1
           fi
           while IFS= read -r file; do
-            cp "$file" release-assets/
+            cp "$file" "release-assets/${ARTIFACT_NAME}-$(basename "$file")"
           done < installer-files.txt
           ls -lh release-assets
 
