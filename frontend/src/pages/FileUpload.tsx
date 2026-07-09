@@ -22,7 +22,7 @@ export function FileUpload({ project }: { project: Project }) {
       <label className="dropzone">
         <input type="file" multiple accept=".pdf,.docx,.xlsx,.txt,.csv,.md,.markdown" onChange={(e) => upload(e.target.files)} />
         <strong>选择或拖入制度文件</strong>
-        <span>文件将保存在本地 storage 目录</span>
+        <span>文件将保存在系统用户数据目录</span>
       </label>
       {message && <div className="notice">{message}</div>}
       <div className="table-wrap">
