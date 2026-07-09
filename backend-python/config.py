@@ -5,6 +5,7 @@ from pathlib import Path
 
 APP_NAME = "审计访谈清单生成工具"
 BASE_DIR = Path(__file__).resolve().parent
+LEGACY_STORAGE_DIR = BASE_DIR / "storage"
 
 
 def resolve_storage_dir() -> Path:

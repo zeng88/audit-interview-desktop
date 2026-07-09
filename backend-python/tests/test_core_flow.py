@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -12,13 +13,57 @@ from app import app
 from db import init_db
 
 
-def test_core_local_flow(tmp_path: Path) -> None:
-    # 测试使用临时 storage，避免污染用户真实运行数据。
-    config.STORAGE_DIR = tmp_path / "storage"
+def _set_storage_paths(storage_dir: Path) -> None:
+    """测试中切换后端存储目录，避免污染真实用户数据。"""
+    config.STORAGE_DIR = storage_dir
     config.FILES_DIR = config.STORAGE_DIR / "files"
     config.EXPORTS_DIR = config.STORAGE_DIR / "exports"
     config.LOGS_DIR = config.STORAGE_DIR / "logs"
     config.DB_PATH = config.STORAGE_DIR / "audit.db"
+
+
+def test_init_db_migrates_legacy_storage_when_current_has_no_projects(tmp_path: Path) -> None:
+    legacy_storage = tmp_path / "legacy-storage"
+    current_storage = tmp_path / "current-storage"
+
+    config.LEGACY_STORAGE_DIR = legacy_storage
+    _set_storage_paths(legacy_storage)
+    init_db()
+
+    old_file = legacy_storage / "files" / "1" / "制度.md"
+    old_file.parent.mkdir(parents=True, exist_ok=True)
+    old_file.write_text("# 制度", encoding="utf-8")
+    with sqlite3.connect(config.DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT INTO projects(project_name, company_name, industry, audit_objective, audit_period, focus_areas, created_at, updated_at)
+            VALUES('旧项目', '', '', '', '', '', '2026-07-09T10:00:00', '2026-07-09T10:00:00')
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO files(project_id, original_name, stored_path, file_type, file_size, parse_status, created_at)
+            VALUES(1, '制度.md', ?, 'md', 6, 'pending', '2026-07-09T10:00:00')
+            """,
+            (str(old_file),),
+        )
+
+    _set_storage_paths(current_storage)
+    init_db()
+
+    with sqlite3.connect(config.DB_PATH) as conn:
+        project_count = conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
+        stored_path = conn.execute("SELECT stored_path FROM files LIMIT 1").fetchone()[0]
+
+    assert project_count == 1
+    assert stored_path.startswith(str(current_storage))
+    assert Path(stored_path).exists()
+
+
+def test_core_local_flow(tmp_path: Path) -> None:
+    # 测试使用临时 storage，避免污染用户真实运行数据。
+    config.LEGACY_STORAGE_DIR = tmp_path / "legacy-storage"
+    _set_storage_paths(tmp_path / "storage")
     init_db()
     client = TestClient(app)
 

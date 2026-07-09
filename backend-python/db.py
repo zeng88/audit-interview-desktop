@@ -1,4 +1,6 @@
 import json
+import os
+import shutil
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
@@ -66,7 +68,96 @@ def _create_fts(conn: sqlite3.Connection) -> str:
         return "unicode61"
 
 
+def _table_count(db_path: Path, table: str) -> int:
+    """读取指定表数量；旧库不存在或表不存在时按 0 处理。"""
+    if not db_path.exists():
+        return 0
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        try:
+            exists = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+                (table,),
+            ).fetchone()
+            if not exists:
+                return 0
+            return int(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return 0
+
+
+def _backup_existing_db(db_path: Path) -> None:
+    """迁移覆盖前备份当前空库，保留误操作回滚余地。"""
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    for suffix in ("", "-wal", "-shm"):
+        path = Path(f"{db_path}{suffix}")
+        if path.exists():
+            backup_path = Path(f"{path}.bak-{timestamp}")
+            path.replace(backup_path)
+
+
+def _copy_legacy_runtime_files(legacy_dir: Path, target_dir: Path) -> None:
+    """复制旧 storage 中的业务文件，数据库文件单独用 SQLite backup 迁移。"""
+    for name in ("files", "exports", "logs"):
+        source = legacy_dir / name
+        if source.exists():
+            shutil.copytree(source, target_dir / name, dirs_exist_ok=True)
+
+
+def _rewrite_migrated_file_paths(db_path: Path, legacy_dir: Path, target_dir: Path) -> None:
+    """把旧库里的绝对上传路径改成新用户数据目录路径。"""
+    conn = sqlite3.connect(db_path)
+    try:
+        exists = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'files'"
+        ).fetchone()
+        if exists:
+            old_prefix = str(legacy_dir)
+            new_prefix = str(target_dir)
+            conn.execute(
+                "UPDATE files SET stored_path = REPLACE(stored_path, ?, ?) WHERE stored_path LIKE ?",
+                (old_prefix, new_prefix, f"{old_prefix}%"),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def migrate_legacy_storage_if_needed() -> None:
+    """首次使用新目录时迁移旧项目目录 storage，避免本地开发数据看起来丢失。"""
+    if os.environ.get("AUDIT_DISABLE_LEGACY_MIGRATION") == "1":
+        return
+
+    legacy_dir = config.LEGACY_STORAGE_DIR.resolve()
+    target_dir = config.STORAGE_DIR.resolve()
+    if legacy_dir == target_dir:
+        return
+
+    legacy_db = legacy_dir / "audit.db"
+    target_db = config.DB_PATH
+    if _table_count(legacy_db, "projects") == 0:
+        return
+    if _table_count(target_db, "projects") > 0:
+        return
+
+    config.ensure_storage_dirs()
+    _copy_legacy_runtime_files(legacy_dir, target_dir)
+    _backup_existing_db(target_db)
+
+    source = sqlite3.connect(legacy_db)
+    target = sqlite3.connect(target_db)
+    try:
+        source.backup(target)
+    finally:
+        target.close()
+        source.close()
+    _rewrite_migrated_file_paths(target_db, legacy_dir, target_dir)
+
+
 def init_db() -> None:
+    migrate_legacy_storage_if_needed()
     config.ensure_storage_dirs()
     conn = get_connection()
     try:
