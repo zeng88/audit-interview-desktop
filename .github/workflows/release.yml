@@ -146,6 +146,28 @@ jobs:
       - name: Show release assets
         run: ls -lh release-assets
 
+      - name: Delete existing release for tag
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const releases = await github.paginate(github.rest.repos.listReleases, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+            const current = releases.find((release) => release.tag_name === context.ref_name);
+            if (!current) {
+              core.info(`No existing release found for ${context.ref_name}.`);
+              return;
+            }
+            // 反复 force 更新同一个 tag 时，先删除旧 Release，避免同名安装包资产 already_exists。
+            await github.rest.repos.deleteRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: current.id
+            });
+            core.info(`Deleted existing release ${current.id} for ${context.ref_name}.`);
+
       - uses: softprops/action-gh-release@v2
         with:
           name: "Audit Interview Desktop ${{ github.ref_name }}"
